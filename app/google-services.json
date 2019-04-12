@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "172178938524",
+    "firebase_url": "https://data-reciever.firebaseio.com",
+    "project_id": "data-reciever",
+    "storage_bucket": "data-reciever.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:172178938524:android:ebfabd9e7d96c86f",
+        "android_client_info": {
+          "package_name": "com.example.side_channel_attack"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "172178938524-rq1aamflm371bg4jrgbq2q8dik7pl1c7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSq9rm9QtChiVaKTn-1NPoC9WvIYxoWFc"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
