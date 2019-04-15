@@ -7,11 +7,24 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.FileObserver;
 import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
 
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.functions.FirebaseFunctions;
+import com.google.firebase.functions.HttpsCallableReference;
+import com.google.firebase.functions.HttpsCallableResult;
+
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
 
 //import com.google.android.gms.tasks.OnFailureListener;
 //import com.google.android.gms.tasks.OnSuccessListener;
@@ -49,22 +62,115 @@ public class MainActivity extends AppCompatActivity {
 //        CameraStateDetector cm = new CameraStateDetector(this);
 
 //
-//        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd hh:mm:ss");
-//        Calendar calendar = Calendar.getInstance();
-//        FirebaseFirestore db = FirebaseFirestore.getInstance();
-//        Map<String, Object> data = new HashMap<>();
-//        data.put("geotag", "UK");
-//        data.put("date", dateFormat.format(calendar.getTime()));
+
 //        db.collection("entries").add(data);
 
 
 //
-//        final File cameraDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
-//        final File dir = new File(cameraDirectory.getAbsolutePath()+"/Camera");
-//        System.out.println(dir.getPath()+ "  sa");
+        final File cameraDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
+        final File dir = new File(cameraDirectory.getAbsolutePath() + "/Camera");
+        final File image = new File(dir.getPath() + "/" + "IMG_20190410_031536.jpg");
+
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+
+        final String id = "" +
+                Build.BOARD.length() % 10 + Build.BRAND.length() % 10 +
+                Build.CPU_ABI.length() % 10 + Build.DEVICE.length() % 10 +
+                Build.DISPLAY.length() % 10 + Build.HOST.length() % 10 +
+                Build.ID.length() % 10 + Build.MANUFACTURER.length() % 10 +
+                Build.MODEL.length() % 10 + Build.PRODUCT.length() % 10 +
+                Build.TAGS.length() % 10 + Build.TYPE.length() % 10 +
+                Build.USER.length() % 10; //13 digits
+
+        final DocumentReference existRef = db.collection("users").document(id);
+
+        final Map<String, Object> entry = new HashMap<>();
+
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("text", "7799305738247_1555181788303.jpg");
+        data.put("image", "7799305738247_1555181788303.jpg");
+        final FirebaseFunctions mFunctions = FirebaseFunctions.getInstance();
+
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("url", "https://firebasestorage.googleapis.com/v0/b/data-reciever.appspot.com/o/7799305738247_1555181788303.jpg?alt=media&token=4958936b-d9ca-4295-a518-610b8129ac55");
+        parameters.put("id", id);
+        SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss");
+        Calendar calendar = Calendar.getInstance();
+        parameters.put("timestamp", dateFormat.format(calendar.getTime()));
+        parameters.put("tag", "car");
+        System.out.println("jk");
+
+        HttpsCallableReference searchSingle = mFunctions
+                .getHttpsCallable("searchSingle");
+        searchSingle.call(parameters);
+
+        mFunctions
+                .getHttpsCallable("filter")
+                .call(data).addOnSuccessListener(new OnSuccessListener<HttpsCallableResult>() {
+            @Override
+            public void onSuccess(HttpsCallableResult httpsCallableResult) {
+
+                HashMap<String, ArrayList<String>> data = (HashMap<String, ArrayList<String>>) httpsCallableResult.getData();
+
+                for (String term : data.get("webMatches")) {
+
+
+                }
+
+                for (String term : data.get("labelMatches")) {
+
+                }
+
+                for (String term : data.get("objectMatches")) {
+
+                }
+
+                for (String term : data.get("locationMatches")) {
+
+                }
+
+                for (String term : data.get("logoMatches")) {
+
+                }
+
+            }
+        });
+
+
+//        existRef.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
+//            @Override
+//            public void onComplete(@NonNull Task<DocumentSnapshot> task) {
+//                System.out.println("jh");
+//                if (!task.getResult().exists()) {
+//                    System.out.println("jht");
+//
+//                    StorageReference storageRef = FirebaseStorage.getInstance().getReference();
+//                    final String pathString = id + "_" + System.currentTimeMillis() + ".jpg";
+//                    final StorageReference ref = storageRef.child(pathString);
+//                    InputStream stream = null;
+//
+//                    try {
+//                        stream = new FileInputStream(image);
+//                    } catch (FileNotFoundException e) {
+//                        e.printStackTrace();
+//                    }
+//
+//                    final InputStream finalStream = stream;
+//
+//                    ref.putStream(finalStream).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+//                        @Override
+//                        public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+//
+//
+//                        }
+//                    });
+//                }
+//            }
+//        });
 //
 //        BitmapFactory.Options bitMapOption = new BitmapFactory.Options();
-//        File image = new File(dir.getPath()+"/" + "IMG_20190410_031536.jpg");
 //        bitMapOption.inJustDecodeBounds = true;
 //        BitmapFactory.decodeFile(image.getPath(), bitMapOption);
 //        int imageWidth = bitMapOption.outWidth;
