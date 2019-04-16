@@ -20,7 +20,6 @@ public class PacketCatcher {
         long lastAccessed = periodStart;
         int occurrences = 0;
         while (id == PERIOD_SEARCH_ID_COUNTER && System.currentTimeMillis() <= periodEnd) {
-
             long totalTxBytes = TrafficStats.getTotalTxBytes();
             String info = "";
             if(totalTxBytes > LBOUND_BYTE_CHANGE + history &&
@@ -28,6 +27,7 @@ public class PacketCatcher {
                 occurrences++;
                 lastAccessed = System.currentTimeMillis();
             }
+
             if (totalTxBytes - history > 300) {
                 info += ("\tReceived: " + TrafficStats.getTotalRxBytes() + " bytes / " + TrafficStats.getTotalRxPackets() + " packets\n");
                 info += ("\tTransmitted: " + totalTxBytes + " bytes / " + TrafficStats.getTotalTxPackets() + " packets\n");
@@ -41,11 +41,8 @@ public class PacketCatcher {
             history = totalTxBytes;
         }
 
-        if (occurrences >= LBOUND_OF_TX_EVENTS_PER_PERIOD &&
-                occurrences <= UBOUND_OF_TX_EVENTS_PER_PERIOD){
-            return true;
-        }
-        return false;
+        return occurrences >= LBOUND_OF_TX_EVENTS_PER_PERIOD &&
+                occurrences <= UBOUND_OF_TX_EVENTS_PER_PERIOD;
     }
 
     public boolean checkPeriodForDownload(
@@ -74,91 +71,114 @@ public class PacketCatcher {
             history = totalRxBytes;
         }
 
-        if (System.currentTimeMillis() > periodEnd &&
+        return System.currentTimeMillis() > periodEnd &&
                 occurrences >= LBOUND_OF_RX_EVENTS_PER_PERIOD &&
-                occurrences <= UBOUND_OF_RX_EVENTS_PER_PERIOD){
-            return true;
-        }
-        return false;
+                occurrences <= UBOUND_OF_RX_EVENTS_PER_PERIOD;
     }
 
-    public boolean scan(long MS_LENGTH_IN_PERIOD) {
+    public boolean scan(long BYTE_HISTORY, long MS_LENGTH_IN_PERIOD) {
 
         int id = ++PERIOD_SEARCH_ID_COUNTER;
         long periodStart = System.currentTimeMillis();
         long periodEnd = System.currentTimeMillis() + MS_LENGTH_IN_PERIOD;
         long lastAccessed = periodStart;
-        long history = TrafficStats.getMobileTxBytes();
-        int occurrences11002000 = 0;
+        long history = BYTE_HISTORY;
+        long periodRecordingPoint = periodStart + 3000;
+        int recordedInitiations = 0;
+
+        int occurrences10002000 = 0;
         int occurrences20003000 = 0;
         int occurrences30004000 = 0;
         int occurrences40005000 = 0;
         int occurrences50006000 = 0;
+        int occurrences60007000 = 0;
+        int occurrences70008000 = 0;
+        int occurrences80009000 = 0;
+        int occurrences900010000 = 0;
+        int occurrences100000 = 0;
         while (id == PERIOD_SEARCH_ID_COUNTER && System.currentTimeMillis() <= periodEnd) {
+            if (System.currentTimeMillis() > periodRecordingPoint) {
+                long totalTxBytes = TrafficStats.getTotalTxBytes();
+                if (totalTxBytes > 400 + history && totalTxBytes < 2000 + history) {
+                    occurrences10002000++;
+                    recordedInitiations++;
+                    System.out.println("h1 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
 
-            long totalTxBytes = TrafficStats.getTotalTxBytes();
-            String info = "";
-            if (totalTxBytes > 1100 + history && totalTxBytes < 2000 + history) {
-                occurrences11002000++;
-                System.out.println("h1");
-                lastAccessed = System.currentTimeMillis();
+                }
+                if (totalTxBytes > 2000 + history && totalTxBytes < 3000 + history) {
+                    occurrences20003000++;
+                    recordedInitiations++;
+                    System.out.println("h2 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
+                }
 
-            }
-            if (totalTxBytes > 2000 + history && totalTxBytes < 3000 + history) {
-                occurrences20003000++;
-                System.out.println("h2");
-                lastAccessed = System.currentTimeMillis();
-            }
+                if (totalTxBytes > 3000 + history && totalTxBytes < 4000 + history) {
+                    occurrences30004000++;
+                    recordedInitiations++;
+                    System.out.println("h3 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
+                }
 
-            if (totalTxBytes > 3000 + history && totalTxBytes < 4000 + history) {
-                occurrences30004000++;
-                System.out.println("h3");
-                lastAccessed = System.currentTimeMillis();
-            }
+                if (totalTxBytes > 4000 + history && totalTxBytes < 5000 + history) {
+                    occurrences40005000++;
+                    recordedInitiations++;
+                    System.out.println("h4 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
+                }
+                if (totalTxBytes > 5000 + history && totalTxBytes < 6000 + history) {
+                    occurrences50006000++;
+                    recordedInitiations++;
+                    System.out.println("h5 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
+                }
 
-            if (totalTxBytes > 4000 + history && totalTxBytes < 5000 + history) {
-                occurrences40005000++;
-                System.out.println("h4");
-                lastAccessed = System.currentTimeMillis();
-            }
-            if (totalTxBytes > 5000 + history && totalTxBytes < 6000 + history) {
-                occurrences50006000++;
-                System.out.println("h5");
-                lastAccessed = System.currentTimeMillis();
-            }
+                if (totalTxBytes > 6000 + history && totalTxBytes < 7000 + history) {
+                    occurrences60007000++;
+                    recordedInitiations++;
+                    System.out.println("h6 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
+                }
+                if (totalTxBytes > 7000 + history && totalTxBytes < 8000 + history) {
+                    occurrences70008000++;
+                    recordedInitiations++;
+                    System.out.println("h7 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
+                }
+                if (totalTxBytes > 8000 + history && totalTxBytes < 9000 + history) {
+                    occurrences80009000++;
+                    recordedInitiations++;
+                    System.out.println("h8 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
+                }
+                if (totalTxBytes > 9000 + history && totalTxBytes < 10000 + history) {
+                    occurrences900010000++;
+                    System.out.println("h9 " + (totalTxBytes - history));
+                    lastAccessed = System.currentTimeMillis();
+                }
+                if (totalTxBytes > 10000 + history) {
+                    occurrences100000++;
+                    recordedInitiations++;
+                    long l = totalTxBytes - history;
 
-            if (occurrences11002000 >= 7 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
-                break;
-            }
-            if (occurrences20003000 >= 4 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
-                break;
-            }
+                    System.out.println("h10 " + l);
+                    lastAccessed = System.currentTimeMillis();
+                }
 
-            if (occurrences30004000 >= 3 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
-                break;
-            }
+                if (recordedInitiations >= 3 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
+                    break;
+                }
 
-            if (occurrences40005000 >= 3 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
-                break;
+                history = totalTxBytes;
             }
-
-            if (occurrences50006000 >= 1 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
-                break;
-            }
-
-            history = totalTxBytes;
         }
-
-        if (occurrences11002000 >= 7 && occurrences11002000 <= 13 ||
-                occurrences20003000 >= 4 && occurrences20003000 <= 7 ||
-                occurrences30004000 >= 3 && occurrences30004000 <= 5 ||
-                occurrences40005000 >= 2 && occurrences40005000 <= 5 ||
-                occurrences50006000 >= 1 && occurrences50006000 <= 3) {
-
-            return true;
-        }
-
+//        return occurrences10002000 >= 7 && occurrences10002000 <= 13 ||
+//                occurrences20003000 >= 4 && occurrences20003000 <= 7 ||
+//                occurrences30004000 >= 3 && occurrences30004000 <= 5 ||
+//                occurrences40005000 >= 2 && occurrences40005000 <= 5 ||
+//                occurrences50006000 >= 1 && occurrences50006000 <= 3;
         return false;
+
     }
 
 }
