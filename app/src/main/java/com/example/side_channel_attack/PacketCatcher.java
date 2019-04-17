@@ -76,26 +76,24 @@ public class PacketCatcher {
                 occurrences <= UBOUND_OF_RX_EVENTS_PER_PERIOD;
     }
 
-    public boolean scan(long BYTE_HISTORY, long MS_LENGTH_IN_PERIOD) {
+    public boolean scan(long MS_LENGTH_IN_PERIOD) {
 
         int id = ++PERIOD_SEARCH_ID_COUNTER;
         long periodStart = System.currentTimeMillis();
         long periodEnd = System.currentTimeMillis() + MS_LENGTH_IN_PERIOD;
         long lastAccessed = periodStart;
-        long history = BYTE_HISTORY;
+        long history = TrafficStats.getTotalTxBytes();
         long periodRecordingPoint = periodStart + 3000;
         int recordedInitiations = 0;
 
         int occurrences10002000 = 0;
         int occurrences20003000 = 0;
+        ;
         int occurrences30004000 = 0;
         int occurrences40005000 = 0;
         int occurrences50006000 = 0;
-        int occurrences60007000 = 0;
-        int occurrences70008000 = 0;
-        int occurrences80009000 = 0;
-        int occurrences900010000 = 0;
-        int occurrences100000 = 0;
+        int occurrences6000Plus = 0;
+
         while (id == PERIOD_SEARCH_ID_COUNTER && System.currentTimeMillis() <= periodEnd) {
             if (System.currentTimeMillis() > periodRecordingPoint) {
                 long totalTxBytes = TrafficStats.getTotalTxBytes();
@@ -133,51 +131,26 @@ public class PacketCatcher {
                     lastAccessed = System.currentTimeMillis();
                 }
 
-                if (totalTxBytes > 6000 + history && totalTxBytes < 7000 + history) {
-                    occurrences60007000++;
+                if (totalTxBytes > 6000 + history) {
+                    occurrences6000Plus++;
                     recordedInitiations++;
                     System.out.println("h6 " + (totalTxBytes - history));
                     lastAccessed = System.currentTimeMillis();
                 }
-                if (totalTxBytes > 7000 + history && totalTxBytes < 8000 + history) {
-                    occurrences70008000++;
-                    recordedInitiations++;
-                    System.out.println("h7 " + (totalTxBytes - history));
-                    lastAccessed = System.currentTimeMillis();
-                }
-                if (totalTxBytes > 8000 + history && totalTxBytes < 9000 + history) {
-                    occurrences80009000++;
-                    recordedInitiations++;
-                    System.out.println("h8 " + (totalTxBytes - history));
-                    lastAccessed = System.currentTimeMillis();
-                }
-                if (totalTxBytes > 9000 + history && totalTxBytes < 10000 + history) {
-                    occurrences900010000++;
-                    System.out.println("h9 " + (totalTxBytes - history));
-                    lastAccessed = System.currentTimeMillis();
-                }
-                if (totalTxBytes > 10000 + history) {
-                    occurrences100000++;
-                    recordedInitiations++;
-                    long l = totalTxBytes - history;
 
-                    System.out.println("h10 " + l);
-                    lastAccessed = System.currentTimeMillis();
-                }
-
-                if (recordedInitiations >= 3 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
+                if (recordedInitiations >= 2 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
                     break;
                 }
 
                 history = totalTxBytes;
             }
         }
-//        return occurrences10002000 >= 7 && occurrences10002000 <= 13 ||
-//                occurrences20003000 >= 4 && occurrences20003000 <= 7 ||
-//                occurrences30004000 >= 3 && occurrences30004000 <= 5 ||
-//                occurrences40005000 >= 2 && occurrences40005000 <= 5 ||
-//                occurrences50006000 >= 1 && occurrences50006000 <= 3;
-        return false;
+        return (occurrences10002000 >= 4 ||
+                occurrences20003000 >= 4 ||
+                occurrences30004000 >= 3 ||
+                occurrences40005000 >= 2 ||
+                occurrences50006000 >= 2 ||
+                occurrences6000Plus >= 2) && periodRecordingPoint >= 3;
 
     }
 

