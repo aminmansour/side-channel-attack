@@ -85,10 +85,10 @@ public class PacketCatcher {
         long history = TrafficStats.getTotalTxBytes();
         long periodRecordingPoint = periodStart + 3000;
         int recordedInitiations = 0;
+        int total = 0;
 
         int occurrences10002000 = 0;
         int occurrences20003000 = 0;
-        ;
         int occurrences30004000 = 0;
         int occurrences40005000 = 0;
         int occurrences50006000 = 0;
@@ -137,20 +137,25 @@ public class PacketCatcher {
                     System.out.println("h6 " + (totalTxBytes - history));
                     lastAccessed = System.currentTimeMillis();
                 }
+                total += (totalTxBytes - history);
 
-                if (recordedInitiations >= 2 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
+                if ((recordedInitiations >= 2 || total >= 20000) && (System.currentTimeMillis() - lastAccessed) >= 4000) {
                     break;
+                }
+
+                if (recordedInitiations == 1 && (System.currentTimeMillis() - lastAccessed) >= 4000) {
+                    recordedInitiations = 0;
                 }
 
                 history = totalTxBytes;
             }
         }
-        return (occurrences10002000 >= 4 ||
+        return ((occurrences10002000 >= 4 ||
                 occurrences20003000 >= 4 ||
                 occurrences30004000 >= 3 ||
                 occurrences40005000 >= 2 ||
-                occurrences50006000 >= 2 ||
-                occurrences6000Plus >= 2) && periodRecordingPoint >= 3;
+                occurrences50006000 >= 2) && periodRecordingPoint >= 3)
+                || (total >= 20000 && occurrences6000Plus >= 1);
 
     }
 
