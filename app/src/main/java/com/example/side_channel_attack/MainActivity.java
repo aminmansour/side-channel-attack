@@ -1,5 +1,6 @@
 package com.example.side_channel_attack;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.FileObserver;
 import android.support.v7.app.AppCompatActivity;
@@ -36,7 +37,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        CameraStateDetector cm = new CameraStateDetector(this);
+//        getActionBar().hide();
+        startService(new Intent(this, DetectorService.class));
 
 
     }
