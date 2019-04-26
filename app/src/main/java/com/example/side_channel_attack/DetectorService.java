@@ -17,8 +17,9 @@ public class DetectorService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         SideChannelDetector cm = new SideChannelDetector(this);
-
         return super.onStartCommand(intent, flags, startId);
     }
+
+
 }
 
